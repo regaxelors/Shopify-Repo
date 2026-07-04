@@ -1,0 +1,448 @@
+'use strict';
+
+/**
+ * index.js
+ *
+ * Cloud execution entry point with HTTP server support for Google Cloud Run.
+ *
+ * Modes:
+ *   1. HTTP Server (Cloud Run): Listens on PORT, provides /health and /trigger endpoints
+ *   2. CLI/Batch (Lambda): Direct execution when run as script
+ *   3. Lambda Handler: Exports handler function for AWS Lambda
+ *
+ * Google Cloud Run: Automatically runs as HTTP server on PORT 8080
+ * Local/CI: Set RUN_HTTP_SERVER=true to start server, or run as batch job
+ */
+
+require('dotenv').config();
+const express = require('express');
+const printifyService = require('./services/printifyService');
+const shopifyService = require('./services/shopifyService');
+const trendService = require('./services/trendService');
+
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
+
+const CONFIG = {
+  DRY_RUN: String(process.env.DRY_RUN || '').toLowerCase() === 'true',
+  STYLING_TEMPLATES: {
+    typography: 'vintage distressed typography design, bold text art',
+    vector: 'minimalist aesthetic vector art, flat design',
+    abstract: 'abstract artistic interpretation, modern digital painting',
+    retro: 'retro vintage aesthetic, nostalgic color palette',
+    minimalist: 'minimalist design, clean lines, monochrome',
+    psychedelic: 'psychedelic trippy visuals, vibrant colors, surreal',
+    cyberpunk: 'cyberpunk neon aesthetic, futuristic digital art',
+    watercolor: 'watercolor painting style, soft pastel tones',
+  },
+};
+
+const LOG_PREFIX = '[index]';
+
+function log(message, data) {
+  const ts = new Date().toISOString();
+  if (data !== undefined) {
+    console.log(`${LOG_PREFIX}[${ts}] ${message}`, data);
+  } else {
+    console.log(`${LOG_PREFIX}[${ts}] ${message}`);
+  }
+}
+
+function logError(message, err) {
+  const ts = new Date().toISOString();
+  console.error(`${LOG_PREFIX}[${ts}] ${message}`, {
+    error: err && err.message,
+    stack: err && err.stack,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Styling Template Selector
+// ---------------------------------------------------------------------------
+
+function pickStyleTemplate(concept) {
+  const clean = concept.toLowerCase();
+
+  if (/typography|text|font|quote/.test(clean)) return CONFIG.STYLING_TEMPLATES.typography;
+  if (/vector|geometric|minimal|simple/.test(clean)) return CONFIG.STYLING_TEMPLATES.vector;
+  if (/abstract|surreal|digital|art/.test(clean)) return CONFIG.STYLING_TEMPLATES.abstract;
+  if (/retro|vintage|nostalgia|80s|90s/.test(clean)) return CONFIG.STYLING_TEMPLATES.retro;
+  if (/minimalist|minimal|clean|simple/.test(clean)) return CONFIG.STYLING_TEMPLATES.minimalist;
+  if (/psychedelic|trippy|vibrant|colorful/.test(clean)) return CONFIG.STYLING_TEMPLATES.psychedelic;
+  if (/cyber|neon|futuristic|tech/.test(clean)) return CONFIG.STYLING_TEMPLATES.cyberpunk;
+  if (/watercolor|paint|soft|pastel/.test(clean)) return CONFIG.STYLING_TEMPLATES.watercolor;
+
+  // Default: rotate through templates based on hash
+  const templates = Object.values(CONFIG.STYLING_TEMPLATES);
+  const hash = clean.split('').reduce((h, c) => h + c.charCodeAt(0), 0);
+  return templates[hash % templates.length];
+}
+
+/**
+ * Builds a dynamic, styled image generation prompt from a trending concept.
+ * Combines the trend with a contextual styling instruction.
+ */
+function buildStyledPrompt(concept) {
+  const style = pickStyleTemplate(concept);
+  return `${concept}, ${style}`;
+}
+
+/**
+ * Sanitizes a concept for use as a product title/tag.
+ * Removes extra punctuation, normalizes casing.
+ */
+function sanitizeForTitle(concept) {
+  return concept
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '') // remove special chars except hyphen/space
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+    .trim();
+}
+
+/**
+ * Extracts searchable tags from a concept.
+ * Example: "bohemian wall decor" -> ["bohemian", "wall decor", "boho"]
+ */
+function extractTags(concept) {
+  const words = concept.split(/\s+/).filter((w) => w.length > 2);
+  const tags = [...words];
+
+  // Add common aliases
+  if (/bohemian|boho/.test(concept)) tags.push('boho');
+  if (/vintage|retro/.test(concept)) tags.push('vintage');
+  if (/minimalist|minimal/.test(concept)) tags.push('minimalist');
+  if (/gothic|dark/.test(concept)) tags.push('gothic');
+  if (/abstract|art/.test(concept)) tags.push('art');
+
+  return [...new Set(tags)];
+}
+
+// ---------------------------------------------------------------------------
+// Trend-Driven Generation Loop
+// ---------------------------------------------------------------------------
+
+/**
+ * Generates print products from trending concepts.
+ * Each concept is processed independently; one failure doesn't crash the batch.
+ */
+async function generateFromTrends(concepts) {
+  log('generateFromTrends', `Processing ${concepts.length} concept(s)`);
+
+  const results = {
+    total: concepts.length,
+    succeeded: 0,
+    failed: 0,
+    products: [],
+    errors: [],
+  };
+
+  for (let i = 0; i < concepts.length; i += 1) {
+    const concept = concepts[i];
+    const conceptId = `trend-${i + 1}-${Date.now()}`;
+
+    try {
+      log(`Concept ${i + 1}/${concepts.length}`, `Processing: "${concept}"`);
+
+      // Step 1: Build styled prompt
+      const styledPrompt = buildStyledPrompt(concept);
+      log(`Concept ${i + 1}`, `Styled prompt: ${styledPrompt}`);
+
+      // Step 2: Sanitize for product metadata
+      const title = `Trending: ${sanitizeForTitle(concept)}`;
+      const tags = extractTags(concept);
+      log(`Concept ${i + 1}`, `Product title: ${title}, tags: ${tags.join(', ')}`);
+
+      // Step 3: Generate asset + Printify product
+      const pipelineResult = await printifyService.runPipeline({
+        jobId: conceptId,
+        prompt: styledPrompt,
+        title,
+        description: `Trending design: ${concept}. Auto-generated from real-time trend data.`,
+        tags: [...tags, 'trending', 'auto-generated'],
+        dryRun: CONFIG.DRY_RUN,
+      });
+
+      results.succeeded += 1;
+      results.products.push({
+        concept,
+        conceptId,
+        title,
+        tags,
+        printifyProductId: pipelineResult.product.id,
+        publishStatus: pipelineResult.publishResult.status,
+      });
+
+      log(`Concept ${i + 1}`, `✓ SUCCESS — Product created`, {
+        productId: pipelineResult.product.id,
+        title,
+      });
+    } catch (err) {
+      results.failed += 1;
+      results.errors.push({
+        concept,
+        conceptId,
+        error: err.message,
+        stage: err.stage || 'unknown',
+      });
+
+      logError(`Concept ${i + 1} FAILED`, err);
+      // Continue to next concept instead of crashing
+      log(`Concept ${i + 1}`, 'Skipping to next concept...');
+    }
+  }
+
+  log('generateFromTrends', `Batch complete`, {
+    total: results.total,
+    succeeded: results.succeeded,
+    failed: results.failed,
+  });
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Shopify Enrichment (Optional, called after bulk generation)
+// ---------------------------------------------------------------------------
+
+async function enrichGeneratedProducts() {
+  log('enrichGeneratedProducts', 'Starting Shopify enrichment...');
+
+  try {
+    const shopifyClient = shopifyService.createShopifyClient({ dryRun: CONFIG.DRY_RUN });
+    const enrichResult = await shopifyService.enrichPrintifyProducts(shopifyClient, {
+      maxProducts: 50, // enrich up to 50 recent products
+      dryRun: CONFIG.DRY_RUN,
+    });
+
+    log('enrichGeneratedProducts', `Enriched ${enrichResult.processed} products`, {
+      collections: enrichResult.results.length,
+    });
+
+    return enrichResult;
+  } catch (err) {
+    logError('enrichGeneratedProducts failed', err);
+    return { processed: 0, results: [] };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Main Execution
+// ---------------------------------------------------------------------------
+
+async function cloudExecutionRun() {
+  log('cloudExecutionRun', 'Starting cloud execution run', {
+    dryRun: CONFIG.DRY_RUN,
+    timestamp: new Date().toISOString(),
+  });
+
+  const executionResult = {
+    startTime: new Date(),
+    endTime: null,
+    duration: null,
+    trends: null,
+    generation: null,
+    enrichment: null,
+    summary: {},
+  };
+
+  try {
+    // -------------------------------------------------------
+    // Step 1: Fetch daily trending concepts
+    // -------------------------------------------------------
+    log('cloudExecutionRun', 'Step 1/3: Fetching trending concepts');
+    executionResult.trends = await trendService.getDailyTrendingConcepts({
+      limit: 5, // Generate up to 5 trending products per run
+      dryRun: CONFIG.DRY_RUN,
+    });
+
+    log('cloudExecutionRun', `Fetched ${executionResult.trends.concepts.length} trending concept(s)`, {
+      concepts: executionResult.trends.concepts,
+      safe: executionResult.trends.safeCount,
+      total: executionResult.trends.totalProcessed,
+    });
+
+    // -------------------------------------------------------
+    // Step 2: Generate products from trending concepts
+    // -------------------------------------------------------
+    log('cloudExecutionRun', 'Step 2/3: Generating products from trends');
+    executionResult.generation = await generateFromTrends(executionResult.trends.concepts);
+
+    log('cloudExecutionRun', `Generated ${executionResult.generation.succeeded}/${executionResult.generation.total}`, {
+      failed: executionResult.generation.failed,
+      errors: executionResult.generation.errors.length,
+    });
+
+    // -------------------------------------------------------
+    // Step 3: Enrich Shopify products
+    // -------------------------------------------------------
+    log('cloudExecutionRun', 'Step 3/3: Enriching Shopify products');
+    executionResult.enrichment = await enrichGeneratedProducts();
+
+    log('cloudExecutionRun', `Enriched ${executionResult.enrichment.processed} products`);
+
+    // -------------------------------------------------------
+    // Summary
+    // -------------------------------------------------------
+    executionResult.endTime = new Date();
+    executionResult.duration = executionResult.endTime - executionResult.startTime;
+
+    executionResult.summary = {
+      trendsFound: executionResult.trends.concepts.length,
+      productsGenerated: executionResult.generation.succeeded,
+      productsFailed: executionResult.generation.failed,
+      productsEnriched: executionResult.enrichment.processed,
+      durationMs: executionResult.duration,
+      successRate: `${Math.round((executionResult.generation.succeeded / executionResult.generation.total) * 100)}%`,
+    };
+
+    log('cloudExecutionRun', '✓ EXECUTION COMPLETE', executionResult.summary);
+
+    return executionResult;
+  } catch (err) {
+    logError('cloudExecutionRun FAILED', err);
+    executionResult.endTime = new Date();
+    executionResult.duration = executionResult.endTime - executionResult.startTime;
+    executionResult.summary.error = err.message;
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Exports (for Lambda, Cloud Functions, etc.)
+// ---------------------------------------------------------------------------
+
+module.exports = {
+  cloudExecutionRun,
+  generateFromTrends,
+  enrichGeneratedProducts,
+  buildStyledPrompt,
+  sanitizeForTitle,
+  extractTags,
+  pickStyleTemplate,
+};
+
+/**
+ * AWS Lambda handler signature
+ */
+exports.handler = async (event, context) => {
+  log('handler', 'Lambda invoked', { event, context: { functionName: context.functionName } });
+
+  try {
+    const result = await cloudExecutionRun();
+    return {
+      statusCode: 200,
+      body: JSON.stringify(result.summary),
+    };
+  } catch (err) {
+    logError('handler failed', err);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: err.message }),
+    };
+  }
+};
+
+// ---------------------------------------------------------------------------
+// CLI: Run directly with `node src/index.js`
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// HTTP Server (Google Cloud Run)
+// ---------------------------------------------------------------------------
+
+function startHttpServer() {
+  const app = express();
+  const PORT = process.env.PORT || 8080;
+
+  // Health check endpoint (Cloud Run startup/readiness probe)
+  app.get('/health', (req, res) => {
+    res.status(200).json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      service: 'pod-automation-pipeline',
+    });
+  });
+
+  // Live probe (Cloud Run liveness check)
+  app.get('/live', (req, res) => {
+    res.status(200).json({ alive: true });
+  });
+
+  // Trigger cloud execution manually
+  app.post('/execute', express.json(), async (req, res) => {
+    log('/execute', 'Received manual execution request');
+
+    try {
+      const result = await cloudExecutionRun();
+      res.status(200).json({
+        success: true,
+        summary: result.summary,
+      });
+    } catch (err) {
+      log('/execute', 'Execution failed', err.message);
+      res.status(500).json({
+        success: false,
+        error: err.message,
+      });
+    }
+  });
+
+  // Root endpoint
+  app.get('/', (req, res) => {
+    res.status(200).json({
+      service: 'Print-on-Demand Automation Pipeline',
+      version: '0.1.0',
+      endpoints: {
+        health: 'GET /health',
+        live: 'GET /live',
+        execute: 'POST /execute',
+      },
+    });
+  });
+
+  // 404 handler
+  app.use((req, res) => {
+    res.status(404).json({ error: 'Not found' });
+  });
+
+  // Start server
+  app.listen(PORT, '0.0.0.0', () => {
+    log('startHttpServer', `Server listening on http://0.0.0.0:${PORT}`, { PORT });
+    log('startHttpServer', 'Ready for Cloud Run deployment');
+  });
+
+  return app;
+}
+
+// ---------------------------------------------------------------------------
+// Entry Point Decision Logic
+// ---------------------------------------------------------------------------
+
+if (require.main === module) {
+  const shouldRunHttpServer =
+    String(process.env.RUN_HTTP_SERVER || '').toLowerCase() === 'true' ||
+    String(process.env.CLOUD_RUN_ENVIRONMENT || '').toLowerCase() !== 'false';
+
+  if (shouldRunHttpServer) {
+    // Cloud Run mode: start HTTP server
+    log('main', 'Starting in HTTP server mode (Cloud Run)');
+    startHttpServer();
+  } else {
+    // Batch/Lambda mode: run once and exit
+    log('main', 'Starting in batch execution mode');
+    cloudExecutionRun()
+      .then((result) => {
+        console.log('\n=== EXECUTION SUMMARY ===');
+        console.log(JSON.stringify(result.summary, null, 2));
+        process.exitCode = 0;
+      })
+      .catch((err) => {
+        console.error('\n=== EXECUTION FAILED ===');
+        console.error(err);
+        process.exitCode = 1;
+      });
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(npm install -g gsd-pi)",
+      "PowerShell(Get-Command node -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command npm -ErrorAction SilentlyContinue)",
+      "PowerShell(winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements)",
+      "PowerShell(node -v)",
+      "PowerShell(npm -v)",
+      "Bash(npm -v)",
+      "PowerShell(winget --version 2>$null)",
+      "PowerShell(winget list --id OpenJS.NodeJS 2>$null)",
+      "PowerShell(winget install --id OpenJS.NodeJS.LTS -e --source winget --accept-package-agreements --accept-source-agreements)",
+      "PowerShell(gcloud --version)",
+      "Bash(gcloud --version)",
+      "PowerShell(& \"C:\\\\Program Files \\(x86\\)\\\\Google\\\\Cloud SDK\\\\bin\\\\gcloud.cmd\" --version)",
+      "PowerShell(& \"C:\\\\Users\\\\regax\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\bin\\\\gcloud.cmd\" --version)",
+      "PowerShell(& \"C:\\\\Users\\\\regax\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" --version)",
+      "PowerShell(& \"C:\\\\Users\\\\regax\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" auth login)",
+      "PowerShell(& \"C:\\\\Users\\\\regax\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" info --run-diagnostics)",
+      "PowerShell(& \"C:\\\\Users\\\\regax\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" auth login --no-browser)",
+      "PowerShell(& \"C:\\\\Users\\\\regax\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" init --skip-diagnostics)",
+      "PowerShell(& \"C:\\\\Users\\\\regax\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" config set project shopify-project-501418)",
+      "PowerShell(& \"C:\\\\Users\\\\regax\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" config list)",
+      "PowerShell($gcloud = \"C:\\\\Users\\\\regax\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" ; & $gcloud secrets list)"
+    ]
+  }
+}

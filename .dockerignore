@@ -1,0 +1,59 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node modules (will be installed in Dockerfile)
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Environment (use .env.example in Docker)
+.env
+.env.local
+.env.*.local
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Development/testing
+test-*.js
+*.test.js
+*.spec.js
+coverage
+.nyc_output
+
+# Build artifacts
+dist
+build
+out
+
+# Documentation (optional: reduce image size)
+*.md
+docs/
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Local dev files
+assets/generated
+.claude
+.cloudignore
+.tokens.json
+
+# Large files
+*.tar
+*.tar.gz
+*.zip
+*.rar

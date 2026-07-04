@@ -1,0 +1,35 @@
+{
+  "name": "pod-automation-pipeline",
+  "version": "0.1.0",
+  "description": "Low-cost autonomous print-on-demand pipeline: asset generation -> Printify -> Shopify sync.",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "DRY_RUN=true node src/app.js",
+    "dry-run": "DRY_RUN=true node src/app.js",
+    "cloud": "node src/index.js",
+    "cloud:dry": "DRY_RUN=true node src/index.js",
+    "verify": "node src/utils/verifySystem.js",
+    "check-creds": "node src/utils/browserAuth.js",
+    "test:printify": "node src/services/printifyService.js",
+    "test:shopify": "node src/services/shopifyService.js",
+    "test:trends": "node src/services/trendService.js"
+  },
+  "keywords": [
+    "print-on-demand",
+    "printify",
+    "shopify",
+    "automation"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@shopify/shopify-api": "^13.1.0",
+    "axios": "^1.18.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "lucide-react": "^1.23.0",
+    "node-cron": "^4.5.0"
+  }
+}
