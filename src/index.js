@@ -19,7 +19,6 @@ const express = require('express');
 const printifyService = require('./services/printifyService');
 const shopifyService = require('./services/shopifyService');
 const trendService = require('./services/trendService');
-const digitalProductsService = require('./services/digitalProductsService');
 const cleanupService = require('./services/cleanupService');
 
 // ---------------------------------------------------------------------------
@@ -127,95 +126,6 @@ function extractTags(concept) {
 // ---------------------------------------------------------------------------
 
 /**
- * Generate complete product suite for a single concept:
- *   1. Canvas/wall art via Printify
- *   2. T-shirt design via Printify
- *   3. Font (digital download)
- *   4. Graphics pack (SVG + high-res, digital download)
- */
-async function generateProductSuite({ concept, styledPrompt, title, tags, conceptId, dryRun = false }) {
-  log(`generateProductSuite [${conceptId}]`, `Starting product suite generation for: "${concept}"`);
-
-  const printProducts = [];
-  const digitalProducts = [];
-
-  // 1. Generate Printify product (one per concept)
-  try {
-    log(`generateProductSuite [${conceptId}]`, `Generating Printify product...`);
-    const printResult = await printifyService.runPipeline({
-      jobId: conceptId,
-      prompt: styledPrompt,
-      title,
-      description: `Contemporary design inspired by: ${concept}. Premium quality print-on-demand product.`,
-      tags: [...tags, 'auto-generated'],
-      dryRun,
-    });
-    printProducts.push({
-      type: 'printify',
-      productId: printResult.product.id,
-      title,
-    });
-    log(`generateProductSuite [${conceptId}]`, `✓ Printify product created`);
-  } catch (err) {
-    log(`generateProductSuite [${conceptId}]`, `Printify generation failed: ${err.message}`);
-  }
-
-  // 2. Generate digital assets (fonts + graphics)
-  try {
-    log(`generateProductSuite [${conceptId}]`, `Generating digital assets...`);
-    const digitalAssets = await digitalProductsService.generateDigitalProducts(concept);
-    log(`generateProductSuite [${conceptId}]`, `✓ Digital assets generated`);
-
-    // 2a. Create font product in Shopify
-    try {
-      log(`generateProductSuite [${conceptId}]`, `Creating font product in Shopify...`);
-      const shopifyClient = shopifyService.createShopifyClient({ dryRun });
-      const fontResult = await shopifyService.createDigitalProduct(shopifyClient, {
-        title: digitalAssets.font.payload.title,
-        description: digitalAssets.font.payload.description,
-        files: digitalAssets.font.payload.files,
-        tags: [...tags, 'font', 'digital-download'],
-        price: 2999,
-      }, { dryRun });
-      digitalProducts.push({
-        type: 'font',
-        productId: fontResult.product.id,
-        title: fontResult.product.title,
-      });
-      log(`generateProductSuite [${conceptId}]`, `✓ Font product created`);
-    } catch (err) {
-      log(`generateProductSuite [${conceptId}]`, `Font creation failed: ${err.message}`);
-    }
-
-    // 2b. Create graphics product in Shopify
-    try {
-      log(`generateProductSuite [${conceptId}]`, `Creating graphics product in Shopify...`);
-      const shopifyClient = shopifyService.createShopifyClient({ dryRun });
-      const graphicsResult = await shopifyService.createDigitalProduct(shopifyClient, {
-        title: digitalAssets.graphics.payload.title,
-        description: digitalAssets.graphics.payload.description,
-        files: digitalAssets.graphics.payload.files,
-        tags: [...tags, 'graphics', 'digital-download', 'svg'],
-        price: 3999,
-      }, { dryRun });
-      digitalProducts.push({
-        type: 'graphics',
-        productId: graphicsResult.product.id,
-        title: graphicsResult.product.title,
-      });
-      log(`generateProductSuite [${conceptId}]`, `✓ Graphics product created`);
-    } catch (err) {
-      log(`generateProductSuite [${conceptId}]`, `Graphics creation failed: ${err.message}`);
-    }
-  } catch (err) {
-    log(`generateProductSuite [${conceptId}]`, `Digital assets generation failed: ${err.message}`);
-  }
-
-  log(`generateProductSuite [${conceptId}]`, `Suite complete`, { printProducts: printProducts.length, digitalProducts: digitalProducts.length });
-  return { printProducts, digitalProducts };
-}
-
-/**
  * Generates print products from trending concepts.
  * Each concept is processed independently; one failure doesn't crash the batch.
  */
@@ -246,13 +156,13 @@ async function generateFromTrends(concepts) {
       const tags = extractTags(concept);
       log(`Concept ${i + 1}`, `Product title: ${title}, tags: ${tags.join(', ')}`);
 
-      // Step 3: Generate all 4 product types from single concept
-      const allProducts = await generateProductSuite({
-        concept,
-        styledPrompt,
+      // Step 3: Generate Printify product
+      const pipelineResult = await printifyService.runPipeline({
+        jobId: conceptId,
+        prompt: styledPrompt,
         title,
-        tags,
-        conceptId,
+        description: `Contemporary design inspired by: ${concept}. Premium quality print-on-demand product.`,
+        tags: [...tags, 'auto-generated'],
         dryRun: CONFIG.DRY_RUN,
       });
 
@@ -262,14 +172,13 @@ async function generateFromTrends(concepts) {
         conceptId,
         title,
         tags,
-        printProducts: allProducts.printProducts,
-        digitalProducts: allProducts.digitalProducts,
+        printifyProductId: pipelineResult.product.id,
+        publishStatus: pipelineResult.publishResult.status,
       });
 
-      log(`Concept ${i + 1}`, `✓ SUCCESS — Generated ${allProducts.printProducts.length + allProducts.digitalProducts.length} products`, {
-        concept,
-        printProducts: allProducts.printProducts.length,
-        digitalProducts: allProducts.digitalProducts.length,
+      log(`Concept ${i + 1}`, `✓ SUCCESS — Product created`, {
+        productId: pipelineResult.product.id,
+        title,
       });
     } catch (err) {
       results.failed += 1;
