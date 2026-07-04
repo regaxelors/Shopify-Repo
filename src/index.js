@@ -161,7 +161,7 @@ async function generateFromTrends(concepts) {
         jobId: conceptId,
         prompt: styledPrompt,
         title,
-        description: `Contemporary design inspired by: ${concept}. Premium quality print-on-demand product.`,
+        description: `Check out this ${concept} design — uniquely printed just for you. Limited availability.`,
         tags: [...tags, 'auto-generated'],
         dryRun: CONFIG.DRY_RUN,
       });
@@ -268,12 +268,12 @@ async function cleanupAndReplace() {
           const title = sanitizeForTitle(concept);
           const tags = extractTags(concept);
 
-          await generateProductSuite({
-            concept,
-            styledPrompt,
+          const pipelineResult = await printifyService.runPipeline({
+            jobId: conceptId,
+            prompt: styledPrompt,
             title,
-            tags,
-            conceptId,
+            description: `Check out this ${concept} design — uniquely printed just for you. Limited availability.`,
+            tags: [...tags, 'auto-generated'],
             dryRun: CONFIG.DRY_RUN,
           });
 
