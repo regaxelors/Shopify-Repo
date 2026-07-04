@@ -150,7 +150,7 @@ async function generateProductSuite({ concept, styledPrompt, title, tags, concep
       jobId: `${conceptId}-canvas`,
       prompt: styledPrompt,
       title: `${title} Canvas`,
-      description: `Canvas print: ${concept}. High-quality wall art. Auto-generated from trend data.`,
+      description: `Stunning canvas print featuring ${concept}. Perfect for modern homes and offices. Premium quality art ready to hang.`,
       tags: [...tags, 'canvas', 'wall-art'],
       dryRun,
     });
@@ -169,7 +169,7 @@ async function generateProductSuite({ concept, styledPrompt, title, tags, concep
       jobId: `${conceptId}-tshirt`,
       prompt: styledPrompt,
       title: `${title} T-Shirt`,
-      description: `T-shirt design: ${concept}. Premium quality apparel. Auto-generated from trend data.`,
+      description: `Comfortable, stylish t-shirt featuring ${concept}. Made from premium cotton blend. Express yourself with unique, eye-catching design.`,
       tags: [...tags, 'apparel', 'tshirt'],
       dryRun,
     });

@@ -138,7 +138,7 @@ function buildDigitalProductPayload({ concept, productType, fontData, graphicsDa
 
   if (productType === 'font') {
     title = `${baseTitle} Font`;
-    description = `Beautiful ${fontData.aesthetic} typeface: ${fontData.selectedFont}. Google Fonts TTF file. Instant download.`;
+    description = `Professional ${fontData.aesthetic} typeface: ${fontData.selectedFont}. Perfect for logos, headers, and creative projects. Instant digital download.`;
     files = [{
       fileName: fontData.fontFileName,
       url: fontData.fontUrl,
@@ -146,7 +146,7 @@ function buildDigitalProductPayload({ concept, productType, fontData, graphicsDa
     }];
   } else if (productType === 'graphics') {
     title = `${baseTitle} Graphics Pack`;
-    description = `Complete ${graphicsData.concept} design assets. Includes SVG vectors (fully editable) and high-resolution PNG (print-ready 2048x2048). Perfect for design projects, merchandise, or personal use.`;
+    description = `Complete design asset collection for ${graphicsData.concept}. Includes fully editable SVG vectors and high-resolution PNG files (2048x2048, print-ready). Use for branding, merchandise, social media, and more.`;
     files = [
       { fileName: graphicsData.svgGraphic.fileName, type: 'svg' },
       { fileName: graphicsData.highResGraphic.fileName, type: 'png' },
