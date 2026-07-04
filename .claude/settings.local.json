@@ -35,7 +35,8 @@
       "Bash(git commit -m 'Simplify product generation and add detailed logging *)",
       "Bash(gcloud run *)",
       "Bash(\"/c/Users/regax/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/gcloud.cmd\" run deploy shopify-repo-git --source . --platform managed --region us-central1 --allow-unauthenticated --set-env-vars=\"DRY_RUN=false,NODE_ENV=production\" --set-secrets=\"SHOPIFY_STORE_DOMAIN=SHOPIFY_STORE_DOMAIN:latest,SHOPIFY_ADMIN_API_ACCESS_TOKEN=SHOPIFY_ADMIN_API_ACCESS_TOKEN:latest,PRINTIFY_API_TOKEN=PRINTIFY_API_TOKEN:latest,PRINTIFY_SHOP_ID=PRINTIFY_SHOP_ID:latest\" --memory 512Mi --timeout 600 --max-instances 10 --no-traffic)",
-      "Bash(git commit -m 'Simplify to Printify-only, defer digital products *)"
+      "Bash(git commit -m 'Simplify to Printify-only, defer digital products *)",
+      "Bash(git commit -m 'Randomize blueprint selection for product variety *)"
     ]
   }
 }

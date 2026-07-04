@@ -320,12 +320,8 @@ async function selectBlueprintAndVariants({ dryRun = DRY_RUN_DEFAULT, maxVariant
     blueprint = blueprints.find((bp) => String(bp.id) === String(CONFIG.PRINTIFY_BLUEPRINT_ID));
   }
   if (!blueprint) {
-    blueprint = blueprints.find((bp) =>
-      bp.title.toLowerCase().includes(CONFIG.PRINTIFY_BLUEPRINT_TITLE_HINT.toLowerCase())
-    );
-  }
-  if (!blueprint) {
-    blueprint = blueprints[0];
+    // Randomly select from all blueprints (instead of always picking first "Canvas")
+    blueprint = blueprints[Math.floor(Math.random() * blueprints.length)];
   }
   if (!blueprint) {
     throw new Error('No Printify blueprints available to select from.');
