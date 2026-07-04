@@ -180,6 +180,7 @@ async function request(method, url, { data, params } = {}, { retries = CONFIG.MA
         headers: {
           Authorization: `Bearer ${CONFIG.PRINTIFY_API_TOKEN}`,
           'Content-Type': 'application/json',
+          'User-Agent': 'NodeJS-POD-Automation/1.0',
         },
       });
       return response.data;
