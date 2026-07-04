@@ -136,6 +136,14 @@ async function generateProductSuite({ concept, styledPrompt, title, tags, concep
   const printProducts = [];
   const digitalProducts = [];
 
+  // Generate digital assets once (fonts + graphics)
+  let digitalAssets = null;
+  try {
+    digitalAssets = await digitalProductsService.generateDigitalProducts(concept);
+  } catch (err) {
+    log(`generateProductSuite [${conceptId}]`, `Digital assets generation failed: ${err.message}`);
+  }
+
   // 1. Generate canvas/wall art via Printify
   try {
     const canvasResult = await printifyService.runPipeline({
@@ -175,53 +183,51 @@ async function generateProductSuite({ concept, styledPrompt, title, tags, concep
   }
 
   // 3. Generate digital font product
-  try {
-    const digitalAssets = await digitalProductsService.generateDigitalProducts(concept);
-    const shopifyClient = shopifyService.createShopifyClient({ dryRun });
-
-    // Create font product in Shopify
-    const fontPrice = 2999; // $29.99 for fonts (higher margin on digital)
-    const fontProductPayload = {
-      title: digitalAssets.font.payload.title,
-      description: digitalAssets.font.payload.description,
-      files: digitalAssets.font.payload.files,
-      tags: [...tags, 'font', 'digital-download'],
-      price: fontPrice,
-    };
-    const fontResult = await shopifyService.createDigitalProduct(shopifyClient, fontProductPayload, { dryRun });
-    digitalProducts.push({
-      type: 'font',
-      productId: fontResult.product.id,
-      title: fontResult.product.title,
-      price: fontPrice,
-    });
-  } catch (err) {
-    log(`generateProductSuite [${conceptId}]`, `Font generation failed: ${err.message}`);
+  if (digitalAssets) {
+    try {
+      const shopifyClient = shopifyService.createShopifyClient({ dryRun });
+      const fontPrice = 2999; // $29.99 for fonts
+      const fontProductPayload = {
+        title: digitalAssets.font.payload.title,
+        description: digitalAssets.font.payload.description,
+        files: digitalAssets.font.payload.files,
+        tags: [...tags, 'font', 'digital-download'],
+        price: fontPrice,
+      };
+      const fontResult = await shopifyService.createDigitalProduct(shopifyClient, fontProductPayload, { dryRun });
+      digitalProducts.push({
+        type: 'font',
+        productId: fontResult.product.id,
+        title: fontResult.product.title,
+        price: fontPrice,
+      });
+    } catch (err) {
+      log(`generateProductSuite [${conceptId}]`, `Font product creation failed: ${err.message}`);
+    }
   }
 
   // 4. Generate digital graphics pack
-  try {
-    const digitalAssets = await digitalProductsService.generateDigitalProducts(concept);
-    const shopifyClient = shopifyService.createShopifyClient({ dryRun });
-
-    // Create graphics pack product in Shopify
-    const graphicsPrice = 3999; // $39.99 for graphics packs (highest margin)
-    const graphicsProductPayload = {
-      title: digitalAssets.graphics.payload.title,
-      description: digitalAssets.graphics.payload.description,
-      files: digitalAssets.graphics.payload.files,
-      tags: [...tags, 'graphics', 'digital-download', 'svg'],
-      price: graphicsPrice,
-    };
-    const graphicsResult = await shopifyService.createDigitalProduct(shopifyClient, graphicsProductPayload, { dryRun });
-    digitalProducts.push({
-      type: 'graphics',
-      productId: graphicsResult.product.id,
-      title: graphicsResult.product.title,
-      price: graphicsPrice,
-    });
-  } catch (err) {
-    log(`generateProductSuite [${conceptId}]`, `Graphics generation failed: ${err.message}`);
+  if (digitalAssets) {
+    try {
+      const shopifyClient = shopifyService.createShopifyClient({ dryRun });
+      const graphicsPrice = 3999; // $39.99 for graphics packs
+      const graphicsProductPayload = {
+        title: digitalAssets.graphics.payload.title,
+        description: digitalAssets.graphics.payload.description,
+        files: digitalAssets.graphics.payload.files,
+        tags: [...tags, 'graphics', 'digital-download', 'svg'],
+        price: graphicsPrice,
+      };
+      const graphicsResult = await shopifyService.createDigitalProduct(shopifyClient, graphicsProductPayload, { dryRun });
+      digitalProducts.push({
+        type: 'graphics',
+        productId: graphicsResult.product.id,
+        title: graphicsResult.product.title,
+        price: graphicsPrice,
+      });
+    } catch (err) {
+      log(`generateProductSuite [${conceptId}]`, `Graphics product creation failed: ${err.message}`);
+    }
   }
 
   return { printProducts, digitalProducts };
