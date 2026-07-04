@@ -30,7 +30,8 @@
       "Bash(git add *)",
       "Bash(git commit -m 'Optimize generateProductSuite: call generateDigitalProducts once *)",
       "Bash(git commit -m 'Add inventory cleanup & replacement system *)",
-      "Bash(git commit -m 'Add watermarking to digital product preview graphics *)"
+      "Bash(git commit -m 'Add watermarking to digital product preview graphics *)",
+      "Bash(git commit -m 'Auto-assign products to correct collections *)"
     ]
   }
 }

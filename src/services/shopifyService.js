@@ -220,6 +220,16 @@ async function listProductsFromPrintify(client, { limit = 50, cursor = null, dry
 
 const COLLECTION_RULES = [
   {
+    name: 'Digital Downloads',
+    matchPatterns: [/font|graphics|digital/i],
+    matchTags: ['digital-download', 'font', 'graphics', 'svg'],
+  },
+  {
+    name: 'Physical Products',
+    matchPatterns: [/canvas|tshirt|apparel|shirt|print/i],
+    matchTags: ['canvas', 'tshirt', 'apparel', 'wall-art'],
+  },
+  {
     name: 'Canvas Prints',
     matchPatterns: [/canvas/i, /print/i, /wall art/i],
     matchTags: ['canvas', 'prints'],
