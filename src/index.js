@@ -19,6 +19,7 @@ const express = require('express');
 const printifyService = require('./services/printifyService');
 const shopifyService = require('./services/shopifyService');
 const trendService = require('./services/trendService');
+const digitalProductsService = require('./services/digitalProductsService');
 
 // ---------------------------------------------------------------------------
 // Config
@@ -125,6 +126,108 @@ function extractTags(concept) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Generate complete product suite for a single concept:
+ *   1. Canvas/wall art via Printify
+ *   2. T-shirt design via Printify
+ *   3. Font (digital download)
+ *   4. Graphics pack (SVG + high-res, digital download)
+ */
+async function generateProductSuite({ concept, styledPrompt, title, tags, conceptId, dryRun = false }) {
+  const printProducts = [];
+  const digitalProducts = [];
+
+  // 1. Generate canvas/wall art via Printify
+  try {
+    const canvasResult = await printifyService.runPipeline({
+      jobId: `${conceptId}-canvas`,
+      prompt: styledPrompt,
+      title: `${title} Canvas`,
+      description: `Canvas print: ${concept}. High-quality wall art. Auto-generated from trend data.`,
+      tags: [...tags, 'canvas', 'wall-art'],
+      dryRun,
+    });
+    printProducts.push({
+      type: 'canvas',
+      productId: canvasResult.product.id,
+      title: `${title} Canvas`,
+    });
+  } catch (err) {
+    log(`generateProductSuite [${conceptId}]`, `Canvas generation failed: ${err.message}`);
+  }
+
+  // 2. Generate t-shirt design via Printify
+  try {
+    const tshirtResult = await printifyService.runPipeline({
+      jobId: `${conceptId}-tshirt`,
+      prompt: styledPrompt,
+      title: `${title} T-Shirt`,
+      description: `T-shirt design: ${concept}. Premium quality apparel. Auto-generated from trend data.`,
+      tags: [...tags, 'apparel', 'tshirt'],
+      dryRun,
+    });
+    printProducts.push({
+      type: 'tshirt',
+      productId: tshirtResult.product.id,
+      title: `${title} T-Shirt`,
+    });
+  } catch (err) {
+    log(`generateProductSuite [${conceptId}]`, `T-shirt generation failed: ${err.message}`);
+  }
+
+  // 3. Generate digital font product
+  try {
+    const digitalAssets = await digitalProductsService.generateDigitalProducts(concept);
+    const shopifyClient = shopifyService.createShopifyClient({ dryRun });
+
+    // Create font product in Shopify
+    const fontPrice = 2999; // $29.99 for fonts (higher margin on digital)
+    const fontProductPayload = {
+      title: digitalAssets.font.payload.title,
+      description: digitalAssets.font.payload.description,
+      files: digitalAssets.font.payload.files,
+      tags: [...tags, 'font', 'digital-download'],
+      price: fontPrice,
+    };
+    const fontResult = await shopifyService.createDigitalProduct(shopifyClient, fontProductPayload, { dryRun });
+    digitalProducts.push({
+      type: 'font',
+      productId: fontResult.product.id,
+      title: fontResult.product.title,
+      price: fontPrice,
+    });
+  } catch (err) {
+    log(`generateProductSuite [${conceptId}]`, `Font generation failed: ${err.message}`);
+  }
+
+  // 4. Generate digital graphics pack
+  try {
+    const digitalAssets = await digitalProductsService.generateDigitalProducts(concept);
+    const shopifyClient = shopifyService.createShopifyClient({ dryRun });
+
+    // Create graphics pack product in Shopify
+    const graphicsPrice = 3999; // $39.99 for graphics packs (highest margin)
+    const graphicsProductPayload = {
+      title: digitalAssets.graphics.payload.title,
+      description: digitalAssets.graphics.payload.description,
+      files: digitalAssets.graphics.payload.files,
+      tags: [...tags, 'graphics', 'digital-download', 'svg'],
+      price: graphicsPrice,
+    };
+    const graphicsResult = await shopifyService.createDigitalProduct(shopifyClient, graphicsProductPayload, { dryRun });
+    digitalProducts.push({
+      type: 'graphics',
+      productId: graphicsResult.product.id,
+      title: graphicsResult.product.title,
+      price: graphicsPrice,
+    });
+  } catch (err) {
+    log(`generateProductSuite [${conceptId}]`, `Graphics generation failed: ${err.message}`);
+  }
+
+  return { printProducts, digitalProducts };
+}
+
+/**
  * Generates print products from trending concepts.
  * Each concept is processed independently; one failure doesn't crash the batch.
  */
@@ -151,17 +254,17 @@ async function generateFromTrends(concepts) {
       log(`Concept ${i + 1}`, `Styled prompt: ${styledPrompt}`);
 
       // Step 2: Sanitize for product metadata
-      const title = `Trending: ${sanitizeForTitle(concept)}`;
+      const title = sanitizeForTitle(concept);
       const tags = extractTags(concept);
       log(`Concept ${i + 1}`, `Product title: ${title}, tags: ${tags.join(', ')}`);
 
-      // Step 3: Generate asset + Printify product
-      const pipelineResult = await printifyService.runPipeline({
-        jobId: conceptId,
-        prompt: styledPrompt,
+      // Step 3: Generate all 4 product types from single concept
+      const allProducts = await generateProductSuite({
+        concept,
+        styledPrompt,
         title,
-        description: `Trending design: ${concept}. Auto-generated from real-time trend data.`,
-        tags: [...tags, 'trending', 'auto-generated'],
+        tags,
+        conceptId,
         dryRun: CONFIG.DRY_RUN,
       });
 
@@ -171,13 +274,14 @@ async function generateFromTrends(concepts) {
         conceptId,
         title,
         tags,
-        printifyProductId: pipelineResult.product.id,
-        publishStatus: pipelineResult.publishResult.status,
+        printProducts: allProducts.printProducts,
+        digitalProducts: allProducts.digitalProducts,
       });
 
-      log(`Concept ${i + 1}`, `✓ SUCCESS — Product created`, {
-        productId: pipelineResult.product.id,
-        title,
+      log(`Concept ${i + 1}`, `✓ SUCCESS — Generated ${allProducts.printProducts.length + allProducts.digitalProducts.length} products`, {
+        concept,
+        printProducts: allProducts.printProducts.length,
+        digitalProducts: allProducts.digitalProducts.length,
       });
     } catch (err) {
       results.failed += 1;

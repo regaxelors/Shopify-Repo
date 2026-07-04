@@ -572,6 +572,82 @@ function slugify(str) {
 }
 
 // ---------------------------------------------------------------------------
+// Digital products (fonts, graphics) — create in Shopify with file metadata
+// ---------------------------------------------------------------------------
+
+async function createDigitalProduct(client, digitalProductPayload, { dryRun = false } = {}) {
+  const {
+    title,
+    description,
+    files = [],
+    tags = [],
+    price = 1999, // $19.99 default
+  } = digitalProductPayload;
+
+  if (dryRun) {
+    log('createDigitalProduct', `[DRY RUN] Would create: "${title}"`, { files: files.length, price });
+    return {
+      product: {
+        id: `dry-run-${Date.now()}`,
+        title,
+        handle: slugify(title),
+        status: 'active',
+        vendor: 'Digital Assets',
+        product_type: 'digital-download',
+        body_html: description,
+        tags: tags.join(','),
+      },
+      files,
+    };
+  }
+
+  try {
+    const variant = {
+      title: 'Digital Download',
+      price: (price / 100).toFixed(2),
+      sku: `digital-${Date.now()}`,
+      requires_shipping: false,
+      weight: 0,
+    };
+
+    const productPayload = {
+      product: {
+        title,
+        handle: slugify(title),
+        status: 'active',
+        vendor: 'Digital Assets',
+        product_type: 'digital-download',
+        body_html: description,
+        tags: tags.join(','),
+        variants: [variant],
+      },
+    };
+
+    const response = await shopifyRequest(client, 'POST', '/products.json', productPayload);
+    const product = response.product;
+
+    // Store file metadata as metafield
+    if (files.length > 0) {
+      const fileMetafield = {
+        metafield: {
+          namespace: 'digital_assets',
+          key: 'download_files',
+          value: JSON.stringify(files),
+          type: 'json',
+        },
+      };
+      await shopifyRequest(client, 'POST', `/products/${product.id}/metafields.json`, fileMetafield);
+    }
+
+    log('createDigitalProduct', `✓ Created: "${title}"`, { productId: product.id, files: files.length });
+    return { product, files };
+  } catch (err) {
+    logError('createDigitalProduct', `Failed to create "${title}"`, err);
+    throw new ShopifyServiceError('createDigitalProduct', err);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 
@@ -589,6 +665,7 @@ module.exports = {
   calculatePrice,
   applyPricingRules,
   updateProduct,
+  createDigitalProduct,
   enrichPrintifyProducts,
   ShopifyServiceError,
 };
