@@ -29,7 +29,8 @@
       "PowerShell(\"28137793\" | Out-File -FilePath \"$env:TEMP\\\\shop_id.txt\" -NoNewline -Encoding utf8; & \"C:\\\\Users\\\\regax\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" secrets versions add PRINTIFY_SHOP_ID --data-file=\"$env:TEMP\\\\shop_id.txt\")",
       "Bash(git add *)",
       "Bash(git commit -m 'Optimize generateProductSuite: call generateDigitalProducts once *)",
-      "Bash(git commit -m 'Add inventory cleanup & replacement system *)"
+      "Bash(git commit -m 'Add inventory cleanup & replacement system *)",
+      "Bash(git commit -m 'Add watermarking to digital product preview graphics *)"
     ]
   }
 }

@@ -56,7 +56,7 @@ function getGoogleFonts(concept) {
   };
 }
 
-// Generate SVG graphic from concept
+// Generate SVG graphic from concept with watermark
 function generateSVGGraphic(concept, width = 1024, height = 1024) {
   const aesthetic = detectAesthetic(concept);
   const colors = {
@@ -87,6 +87,15 @@ function generateSVGGraphic(concept, width = 1024, height = 1024) {
   <text x="${width / 2}" y="${height / 2}" font-family="${FONT_PAIRINGS[aesthetic][0]}" font-size="${width * 0.08}" text-anchor="middle" fill="white" opacity="0.9">
     ${concept.substring(0, 20)}
   </text>
+  <!-- Watermark -->
+  <g opacity="0.3">
+    <text x="${width / 2}" y="${height * 0.9}" font-family="Arial, sans-serif" font-size="${width * 0.04}" text-anchor="middle" fill="white" font-weight="bold">
+      © PREVIEW - FOR DEMONSTRATION
+    </text>
+  </g>
+  <!-- Diagonal watermark stripe -->
+  <line x1="0" y1="0" x2="${width}" y2="${height}" stroke="white" stroke-width="${width * 0.02}" opacity="0.15"/>
+  <line x1="${width}" y1="0" x2="0" y2="${height}" stroke="white" stroke-width="${width * 0.02}" opacity="0.15"/>
 </svg>`;
 
   return {
