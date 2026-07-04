@@ -20,6 +20,7 @@ const printifyService = require('./services/printifyService');
 const shopifyService = require('./services/shopifyService');
 const trendService = require('./services/trendService');
 const digitalProductsService = require('./services/digitalProductsService');
+const cleanupService = require('./services/cleanupService');
 
 // ---------------------------------------------------------------------------
 // Config
@@ -339,6 +340,71 @@ async function enrichGeneratedProducts() {
 }
 
 // ---------------------------------------------------------------------------
+// Cleanup & Replacement (Remove stale products, add new trending ones)
+// ---------------------------------------------------------------------------
+
+async function cleanupAndReplace() {
+  log('cleanupAndReplace', 'Starting inventory cleanup cycle...');
+
+  try {
+    const shopifyClient = shopifyService.createShopifyClient({ dryRun: CONFIG.DRY_RUN });
+
+    // Step 1: Run cleanup (delete 2-3 old products with 0 sales)
+    const cleanupResult = await cleanupService.runCleanupCycle(shopifyClient, {
+      dryRun: CONFIG.DRY_RUN,
+    });
+
+    log('cleanupAndReplace', `Cleanup result: ${cleanupResult.deleteCount} products deleted`, {
+      deleted: cleanupResult.deleted.map((p) => p.title),
+    });
+
+    // Step 2: Generate replacement products if any were deleted
+    if (cleanupResult.deleteCount > 0) {
+      log('cleanupAndReplace', `Generating ${cleanupResult.deleteCount} replacement product(s)...`);
+
+      // Fetch fresh trending concepts
+      const trends = await trendService.getDailyTrendingConcepts({ limit: cleanupResult.deleteCount + 2 });
+      const replacementConcepts = trends.slice(0, cleanupResult.deleteCount);
+
+      log('cleanupAndReplace', `Generating replacements from ${replacementConcepts.length} trend concept(s)`);
+
+      // Generate new products from trends
+      for (let i = 0; i < replacementConcepts.length; i += 1) {
+        const concept = replacementConcepts[i];
+        const conceptId = `replacement-${i + 1}-${Date.now()}`;
+
+        try {
+          const styledPrompt = buildStyledPrompt(concept);
+          const title = sanitizeForTitle(concept);
+          const tags = extractTags(concept);
+
+          await generateProductSuite({
+            concept,
+            styledPrompt,
+            title,
+            tags,
+            conceptId,
+            dryRun: CONFIG.DRY_RUN,
+          });
+
+          log('cleanupAndReplace', `✓ Generated replacement from: "${concept}"`);
+        } catch (err) {
+          log('cleanupAndReplace', `Failed to generate replacement for "${concept}": ${err.message}`);
+        }
+      }
+    }
+
+    return {
+      deleted: cleanupResult.deleteCount,
+      generated: cleanupResult.deleteCount,
+    };
+  } catch (err) {
+    logError('cleanupAndReplace failed', err);
+    return { deleted: 0, generated: 0, error: err.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main Execution
 // ---------------------------------------------------------------------------
 
@@ -388,10 +454,21 @@ async function cloudExecutionRun() {
     // -------------------------------------------------------
     // Step 3: Enrich Shopify products
     // -------------------------------------------------------
-    log('cloudExecutionRun', 'Step 3/3: Enriching Shopify products');
+    log('cloudExecutionRun', 'Step 3/4: Enriching Shopify products');
     executionResult.enrichment = await enrichGeneratedProducts();
 
     log('cloudExecutionRun', `Enriched ${executionResult.enrichment.processed} products`);
+
+    // -------------------------------------------------------
+    // Step 4: Cleanup stale products & replace with new ones
+    // -------------------------------------------------------
+    log('cloudExecutionRun', 'Step 4/4: Running inventory cleanup');
+    executionResult.cleanup = await cleanupAndReplace();
+
+    log('cloudExecutionRun', `Cleanup complete`, {
+      deleted: executionResult.cleanup.deleted,
+      generated: executionResult.cleanup.generated,
+    });
 
     // -------------------------------------------------------
     // Summary
@@ -404,6 +481,8 @@ async function cloudExecutionRun() {
       productsGenerated: executionResult.generation.succeeded,
       productsFailed: executionResult.generation.failed,
       productsEnriched: executionResult.enrichment.processed,
+      productsDeleted: executionResult.cleanup.deleted,
+      productsReplaced: executionResult.cleanup.generated,
       durationMs: executionResult.duration,
       successRate: `${Math.round((executionResult.generation.succeeded / executionResult.generation.total) * 100)}%`,
     };
