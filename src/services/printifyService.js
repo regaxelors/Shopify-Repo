@@ -458,6 +458,41 @@ function buildPersonalizationPayload({
 }
 
 // ---------------------------------------------------------------------------
+// Extract product type name from blueprint title
+// ---------------------------------------------------------------------------
+
+function extractProductType(blueprintTitle) {
+  if (!blueprintTitle) return '';
+
+  const lower = blueprintTitle.toLowerCase();
+
+  // T-shirts / apparel
+  if (lower.includes('tee') || lower.includes('t-shirt') || lower.includes('shirt')) return 'T-Shirt';
+  if (lower.includes('hoodie') || lower.includes('sweatshirt')) return 'Hoodie';
+  if (lower.includes('sweatpant') || lower.includes('jogger')) return 'Sweatpants';
+  if (lower.includes('tank')) return 'Tank Top';
+  if (lower.includes('longsleeve') || lower.includes('long sleeve')) return 'Long Sleeve';
+
+  // Canvas / prints
+  if (lower.includes('canvas')) return 'Canvas Print';
+  if (lower.includes('poster')) return 'Poster';
+  if (lower.includes('print')) return 'Print';
+
+  // Drinkware
+  if (lower.includes('mug')) return 'Mug';
+  if (lower.includes('tumbler')) return 'Tumbler';
+  if (lower.includes('bottle')) return 'Bottle';
+
+  // Other
+  if (lower.includes('hat') || lower.includes('cap')) return 'Hat';
+  if (lower.includes('bag') || lower.includes('tote')) return 'Tote Bag';
+  if (lower.includes('towel')) return 'Towel';
+  if (lower.includes('pillow')) return 'Pillow';
+
+  return 'Product';
+}
+
+// ---------------------------------------------------------------------------
 // Stage 2 (cont.): Build + create the product
 // ---------------------------------------------------------------------------
 
@@ -471,6 +506,10 @@ function buildProductPayload({
   personalizationType = null, // 'text' | 'image' | 'both' or null for no personalization
 }) {
   const { blueprint, printProvider, variants } = blueprintSelection;
+
+  // Enhance title with product type from blueprint
+  const productType = extractProductType(blueprint.title);
+  const enhancedTitle = productType ? `${title} ${productType}` : title;
 
   // Add personalization tags to Shopify listing
   const enrichedTags = [...tags];
@@ -490,7 +529,7 @@ function buildProductPayload({
   }
 
   const payload = {
-    title,
+    title: enhancedTitle,
     description,
     tags: enrichedTags,
     blueprint_id: blueprint.id,
